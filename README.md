@@ -1,4 +1,4 @@
-# Análisis del Desempeño en Lectura del SIMCE 2023  
+# Análisis del desempeño en Lectura de 4°Básico en el SIMCE 2023  
 Este proyecto utiliza Machine Learning para analizar el desempeño en lectura de los estudiantes de 4°Básico en el SIMCE 2023.  
 
 ##  Archivos  
