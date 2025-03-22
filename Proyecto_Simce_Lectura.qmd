@@ -1,0 +1,384 @@
+---
+title: "Análisis del desempeño en lectura SIMCE 2023 en 4° Básico por establecimiento mediante técnicas de Machine Learning"
+author: "Catalina Zelada"
+date: "Marzo 2025"
+editor: visual
+format:
+  html:
+    code-fold: true     
+    code-tools: true    
+    echo: false 
+---
+
+# Introducción
+
+Este proyecto tiene como objetivo analizar el desempeño en lectura de los y las estudiantes de 4° Básico en el SIMCE 2023 a nivel de escuela, en relación con diversas variables socioeconómicas y demográficas del establecimiento. A través del uso de técnicas de Machine Learning, se busca identificar patrones y analizar el rendimiento de las escuelas considerando factores como la dependencia administrativa (público, privado, subvencionado), el índice de ruralidad, el grupo socioeconómico (GSE), el índice de vulnerabilidad escolar (IVE-SINAE) y el nivel educativo promedio de los padres.
+
+En este análisis se explorará el uso de árboles de decisión y Random Forest como herramientas principales de modelado para identificar factores asociados al desempeño en lectura a nivel escolar.
+
+# Objetivos
+
+## Objetivo general
+
+-   Analizar el desempeño en Lectura de 4° Básico en el SIMCE 2023 a nivel de escuela, en función de la dependencia administrativa, el índice de ruralidad, el GSE y el índice de vulnerabilidad escolar mediante técnicas de Machine Learning.
+
+## Objetivos específicos
+
+1.  Analizar la relación entre el puntaje SIMCE en lectura de cada escuela y las características de los establecimiento mediante análisis estadísticos descriptivos.
+2.  Aplicar modelos de Machine Learning supervisados para identificar patrones en el desempeño en lectura en función de variables contextuales de la escuela.
+3.  Implementar árboles de decisión y Random Forest como modelos principales.
+4.  Interpretar los hallazgos y discutir sus implicancias para la política educativa en Chile.
+
+# Metodología
+
+## Datos
+
+El análisis se basará en base de datos de la Agencia de la Calidad de la Educación y JUNAEB, que incluye las siguientes variables :
+
+-   Puntaje SIMCE 2023 en lectura para 4° Básico (promedio del establecimiento).
+-   Dependencia administrativa del establecimiento (público, privado, subvencionado).
+-   Índice de ruralidad.
+-   Grupo socioeconómico del establecimiento (GSE).
+-   Índice de vulnerabilidad escolar (IVE-SINAE).
+
+## Modelos de Machine Learning
+
+-   Se utilizará Random Forest para analizar la importancia de las variables en la predicción del puntaje SIMCE y evaluar qué factores influyen en el rendimiento en lectura a nivel de escuela.
+-   Se utilizará un árbol de regresión para visualizar la relación entre las variables predictoras y el puntaje de lectura promedio de la escuela.
+
+## Evaluación del modelo
+
+Los modelos serán evaluados con métricas como:
+
+-   Importancia de variables en Random Forest.
+-   Visualización de estructura de árbol en árboles de regresión.
+-   R² y error cuadrático medio (RMSE) en regresión.
+-   Interpretabilidad y relevancia de las variables predictoras.
+
+## Reproducibilidad y Ciencia Abierta
+
+Para garantizar la reproducibilidad y replicabilidad del análisis, el proyecto seguirá buenas prácticas en ciencia de datos:
+
+-   Todo el código utilizado será documentado en Quarto y estará disponible en un repositorio de GitHub para consulta y reutilización.
+-   Se detallarán los pasos de preprocesamiento, transformación y modelado para asegurar la trazabilidad del análisis.
+-   Se incluirán comentarios y documentación para facilitar la ejecución del código en distintos entornos, asegurando que otros investigadores puedan replicar los resultados.
+
+# Estructura del Proyecto
+
+1.  Carga y limpieza de datos
+2.  Análisis exploratorio y visualización
+3.  Implementación de modelos supervisados
+4.  Evaluación de modelos
+5.  Interpretación y conclusiones
+
+## 1. Carga y limpieza de datos
+
+**1.1** Para la carga y exploración inicial de los datos, se utilizarán las siguientes:
+
+``` r
+
+library(tidyverse)  
+library(readr)      
+library(janitor)     
+library(skimr)       
+library(here)
+```
+
+```{r 1, include=FALSE}
+
+library(tidyverse)  
+library(readr)      
+library(janitor)     
+library(skimr)       
+library(here)
+```
+
+**1.2** Se abre la base de datos de acceso público de la Agencia de Calidad de la Educación que contiene los puntajes de lectura de 4°Básico por establecimiento:
+
+``` r
+
+ruta <- here("simce4b2023_rbd_público_final.xlsx")
+
+simce_data <- readxl::read_excel(ruta) %>% 
+  clean_names() 
+
+invisible(head(simce_data))
+invisible(glimpse(simce_data))
+invisible(skim(simce_data))
+```
+
+```{r include=FALSE}
+
+ruta <- here("simce4b2023_rbd_público_final.xlsx")
+
+simce_data <- readxl::read_excel(ruta) %>% 
+  clean_names() 
+
+invisible(head(simce_data))
+invisible(glimpse(simce_data))
+invisible(skim(simce_data))
+```
+
+**1.3** Posteriormente, se visualizan los nombres de las variables en esta base de datos:
+
+``` r
+nombres_columnas <- colnames(simce_data)
+
+valores_unicos <- simce_data %>%
+  select(rbd, cod_depe2, cod_grupo, cod_rural_rbd, prom_lect4b_rbd, 
+         palu_eda_ins_lect4b_rbd, palu_eda_ele_lect4b_rbd, palu_eda_ade_lect4b_rbd) %>%
+  summarise_all(n_distinct)
+
+valores_faltantes <- simce_data %>%
+  select(rbd, cod_depe2, cod_grupo, cod_rural_rbd, prom_lect4b_rbd, 
+         palu_eda_ins_lect4b_rbd, palu_eda_ele_lect4b_rbd, palu_eda_ade_lect4b_rbd) %>%
+  summarise_all(~sum(is.na(.)))
+```
+
+De esta base de datos, se utilizarán las siguientes variables
+
+-   **rbd**: Identificador único del establecimiento escolar.
+-   **cod_depe2**: Dependencia administrativa del establecimiento (1 = Municipal, 2 = Particular subvencionado, 3 = Particular pagado, 4 = Servicio Local de Educación).
+-   **cod_grupo**: Grupo socioeconómico del establecimiento (GSE), que agrupa a las escuelas según el nivel de ingreso y condiciones socioeconómicas de sus estudiantes (1 Bajo, 2 Medio bajo, 3 Medio, 4 Medio alto, 5 Alto)
+-   **cod_rural_rbd**: Clasificación del establecimiento según ruralidad (1 = Urbano, 2 = Rural).
+-   **prom_lect4b_rbd**: Puntaje promedio en la prueba de lectura del SIMCE 2023 para estudiantes de 4° básico en el establecimiento.
+-   **palu_eda_ins_lect4b_rbd**: Porcentaje de estudiantes con nivel insuficiente en lectura.
+-   **palu_eda_ele_lect4b_rbd**: Porcentaje de estudiantes con nivel elemental en lectura.
+-   **palu_eda_ade_lect4b_rbd**: Porcentaje de estudiantes con nivel adecuado en lectura.
+
+Estas variables serán utilizadas para explorar la relación entre el desempeño en lectura de los establecimientos y sus características socioeconómicas y estructurales.Por lo tanto, se crea una nueva dataset para facilidar el análisis y posterior pegado a la base de datos de JUNAEB.
+
+``` r
+# Se crea un nuevo data frame con las variables relevantes
+simce_ok <- simce_data %>%
+  select(rbd, cod_depe2, cod_grupo, cod_rural_rbd, prom_lect4b_rbd, 
+         palu_eda_ins_lect4b_rbd, palu_eda_ele_lect4b_rbd, palu_eda_ade_lect4b_rbd)
+
+# Se ejecuta 
+invisible(head(simce_ok))
+invisible(glimpse(simce_ok))
+          
+```
+
+```{r include=FALSE}
+# Se crea un nuevo data frame con las variables relevantes
+simce_ok <- simce_data %>%
+  select(rbd, cod_depe2, cod_grupo, cod_rural_rbd, prom_lect4b_rbd, 
+         palu_eda_ins_lect4b_rbd, palu_eda_ele_lect4b_rbd, palu_eda_ade_lect4b_rbd)
+ 
+invisible(head(simce_ok))
+invisible(glimpse(simce_ok))
+          
+```
+
+**1.4** Se abre y explora la Base de Datos sobre Índice de Vulnerabilidad Estudiantil (IVE) perteneciente a la JUNAEB y se exploran sus variables.
+
+``` r
+library(readxl)
+ive_data <- read_excel(here("IVE_2023.xlsx")) %>%
+  clean_names()
+
+estructura_ive <- glimpse(ive_data)
+```
+
+```{r include=FALSE}
+library(readxl)
+ive_data <- read_excel(here("IVE_2023.xlsx")) %>%
+  clean_names()
+
+estructura_ive <- glimpse(ive_data)
+```
+
+**1.5** Finalmente, se unen la variable IVE a la base de datos Simce y se limpia para proceder a los análisis. Debido a que no se mide el Índice de Vulnerabilidad de los colegios particulares pagados, se les ha asignado 0 en esta variable para no ser eliminados del análisis.
+
+``` r
+# Se selecciona la variable IVE
+ive_simple <- ive_data %>%
+  select(id_rbd, ive_2023)
+
+# Se une a la base Simce
+data_simce_ive <- left_join(simce_ok, ive_simple, by = c("rbd" = "id_rbd"))
+
+# Se asigna 0 IVE a los colegios particulares pagados
+
+data_simce_ive <- data_simce_ive %>%
+  mutate(ive_2023 = if_else(cod_depe2 == 3 & is.na(ive_2023), 0, ive_2023))
+
+# Se limpian los NA 
+
+data_simce_ive_ok <- data_simce_ive %>%
+  drop_na(prom_lect4b_rbd, cod_grupo, palu_eda_ins_lect4b_rbd, 
+          palu_eda_ele_lect4b_rbd, palu_eda_ade_lect4b_rbd)
+
+
+nrow(data_simce_ive_ok)
+```
+
+```{r include=FALSE}
+
+# Se selecciona la variable IVE
+ive_simple <- ive_data %>%
+  select(id_rbd, ive_2023)
+
+# Se une a la base Simce
+data_simce_ive <- left_join(simce_ok, ive_simple, by = c("rbd" = "id_rbd"))
+
+# Se asigna 0 IVE a los colegios particulares pagados
+
+data_simce_ive <- data_simce_ive %>%
+  mutate(ive_2023 = if_else(cod_depe2 == 3 & is.na(ive_2023), 0, ive_2023))
+
+# Se limpian los NA 
+
+data_simce_ive_ok <- data_simce_ive %>%
+  drop_na(prom_lect4b_rbd, cod_grupo, palu_eda_ins_lect4b_rbd, 
+          palu_eda_ele_lect4b_rbd, palu_eda_ade_lect4b_rbd)
+
+
+nrow(data_simce_ive_ok)
+
+```
+
+## 2. Análisis exploratorio y visualización del puntaje SIMCE en Lectura 2023 para 4°Básico, por escuela. 
+
+### 2.1 Distribución del puntaje SIMCE en Lectura
+
+Se analiza la distribución del puntaje promedio de lectura (SIMCE) en 4° Básico para conocer su comportamiento general.
+
+```{r echo=FALSE}
+# Histograma con densidad
+ggplot(data_simce_ive_ok, aes(x = prom_lect4b_rbd)) +
+  geom_histogram(aes(y = ..density..), binwidth = 5, fill = "#69b3a2", color = "white", alpha = 0.7) +
+  geom_density(color = "darkblue", size = 1) +
+  labs(
+    title = "Distribución del puntaje promedio en lectura (SIMCE 2023 4° Básico)",
+    x = "Puntaje promedio lectura SIMCE",
+    y = "Densidad"
+  ) +
+  theme_minimal()
+```
+
+### 2.2 Puntaje SIMCE Lectura por Grupo Socioeconómico
+
+Se visualiza la distribución del puntaje promedio en lectura según el grupo socioeconómico (GSE) del establecimiento:
+
+```{r echo=FALSE}
+# Boxplot con etiquetas de GSE
+ggplot(data_simce_ive_ok, aes(
+  x = factor(cod_grupo, 
+             levels = 1:5,
+             labels = c("Bajo", "Medio bajo", "Medio", "Medio alto", "Alto")),
+  y = prom_lect4b_rbd)) +
+  geom_boxplot(fill = "#4682B4", alpha = 0.7, outlier.color = "red") +
+  labs(
+    title = "Distribución del puntaje en Lectura SIMCE por Grupo Socioeconómico (GSE)",
+    x = "Grupo Socioeconómico",
+    y = "Puntaje promedio lectura"
+  ) +
+  theme_minimal()
+
+```
+
+### 2.3 Puntaje SIMCE por Dependencia del Establecimiento
+
+Se visualiza la distribución del puntaje promedio en lectura según la dependencia administrativa del establecimiento.
+
+```{r echo=FALSE}
+table(data_simce_ive_ok$cod_depe2, useNA = "ifany")
+
+ggplot(data_simce_ive_ok, aes(
+  x = factor(cod_depe2,
+             levels = 1:4,
+             labels = c("Municipal", 
+                        "Particular subvencionado", 
+                        "Particular pagado", 
+                        "Servicio Local de Educación")),
+  y = prom_lect4b_rbd)) +
+  geom_boxplot(fill = "#FF8C00", alpha = 0.7, outlier.color = "black") +
+  labs(
+    title = "Distribución del puntaje en Lectura por Dependencia Administrativa",
+    x = "Dependencia",
+    y = "Puntaje promedio en lectura 4° Básico del establecimiento"
+  ) +
+  theme_minimal()
+```
+### 2.4 Relación entre Índice de Vulnerabilidad Escolar  y puntaje en Lectura
+
+Se visualiza  la relación entre el Índice de Vulnerabilidad Escolar y el puntaje promedio SIMCE 2023 en lectura para 4° Básico por establecimiento. Se puede observar una tendencia negativa, en la que a mayor vulnerabilidad, menor desempeño en el promedio Simce en Lectura por escuela.
+
+```{r echo=FALSE}
+
+library(scales)
+
+ggplot(data_simce_ive_ok, aes(x = ive_2023, y = prom_lect4b_rbd)) +
+  geom_point(alpha = 0.3, color = "#2E86C1") +
+  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  scale_x_continuous(labels = percent_format(accuracy = 1)) +
+  labs(
+    title = "Relación entre Índice de Vulnerabilidad Escolar y el puntaje en Lectura 4°Básico",
+    x = "IVE del establecimiento 2023 (%)",
+    y = "Puntaje en SIMCE lectura del establecimiento"
+  ) +
+  theme_minimal()
+```
+### 2.5 Estándar de desempeño en Lectura según vulnerabilidad escolar (IVE)
+
+Se visualiza cómo varían el porcentajes de estudiantes con desempeño insuficiente, elemental y adecuado de cada establecimiento según su índice de vulnerabilidad escolar (IVE).
+
+
+```{r echo=FALSE}
+
+data_simce_ive_ok <- data_simce_ive_ok %>%
+  mutate(across(c(palu_eda_ins_lect4b_rbd, 
+                  palu_eda_ele_lect4b_rbd, 
+                  palu_eda_ade_lect4b_rbd), as.numeric))
+
+# Datos en formato largo
+data_estandares_long <- data_simce_ive_ok %>%
+  pivot_longer(cols = c(palu_eda_ins_lect4b_rbd, 
+                        palu_eda_ele_lect4b_rbd, 
+                        palu_eda_ade_lect4b_rbd),
+               names_to = "estandar",
+               values_to = "porcentaje") %>%
+  mutate(estandar = case_when(
+    estandar == "palu_eda_ins_lect4b_rbd" ~ "Insuficiente",
+    estandar == "palu_eda_ele_lect4b_rbd" ~ "Elemental",
+    estandar == "palu_eda_ade_lect4b_rbd" ~ "Adecuado"
+  ))
+
+# Se realiza gráfico de relación 
+ggplot(data_estandares_long, aes(x = ive_2023, y = porcentaje, color = estandar)) +
+  geom_smooth(method = "loess", se = FALSE) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Niveles de desempeño en lectura según IVE",
+    x = "Índice de Vulnerabilidad Escolar (IVE)",
+    y = "Porcentaje de estudiantes por estándar de logro",
+    color = "Estándar de logro"
+  ) +
+  theme_minimal()
+
+```
+
+## 3.1 Árbol de regresión para predecir puntaje SIMCE en Lectura 4° Básico por establecimiento
+
+En esta sección se utiliza un árbol de regresión para identificar patrones en las variables predictoras que explican el puntaje promedio de lectura SIMCE en los cuártos básicos de cada establecimiento. 
+
+```{r echo=FALSE}
+# Modelo de árbol de regresión
+set.seed(123)  # se estsable esta semilla para reproducibilidad de los resultados
+arbol_simce <- rpart(prom_lect4b_rbd ~ cod_depe2 + cod_grupo + cod_rural_rbd + ive_2023, 
+                     data = data_simce_ive_ok,
+                     method = "anova")
+
+# Visualización del árbol
+rpart.plot(arbol_simce,
+           type = 2,
+           extra = 101,
+           fallen.leaves = TRUE,
+           box.palette = "RdYlGn",
+           shadow.col = "gray",
+           nn = TRUE,
+           main = "Árbol de regresión - Puntaje SIMCE Lectura")
+```
+
