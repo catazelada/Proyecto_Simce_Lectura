@@ -68,7 +68,7 @@ Para garantizar la reproducibilidad y replicabilidad del análisis, el proyecto 
 1.  Carga y limpieza de datos
 2.  Análisis exploratorio y visualización
 3.  Implementación de modelos supervisados
-4.  Evaluación de modelos
+4.  Evaluación del modelo
 5.  Interpretación y conclusiones
 
 ## 1. Carga y limpieza de datos
@@ -239,7 +239,7 @@ nrow(data_simce_ive_ok)
 
 ```
 
-## 2. Análisis exploratorio y visualización del puntaje SIMCE en Lectura 2023 para 4°Básico, por escuela. 
+## 2. Análisis exploratorio y visualización del puntaje SIMCE en Lectura 2023 para 4°Básico, por escuela.
 
 ### 2.1 Distribución del puntaje SIMCE en Lectura
 
@@ -302,9 +302,10 @@ ggplot(data_simce_ive_ok, aes(
   ) +
   theme_minimal()
 ```
-### 2.4 Relación entre Índice de Vulnerabilidad Escolar  y puntaje en Lectura
 
-Se visualiza  la relación entre el Índice de Vulnerabilidad Escolar y el puntaje promedio SIMCE 2023 en lectura para 4° Básico por establecimiento. Se puede observar una tendencia negativa, en la que a mayor vulnerabilidad, menor desempeño en el promedio Simce en Lectura por escuela.
+### 2.4 Relación entre Índice de Vulnerabilidad Escolar y puntaje en Lectura
+
+Se visualiza la relación entre el Índice de Vulnerabilidad Escolar y el puntaje promedio SIMCE 2023 en lectura para 4° Básico por establecimiento. Se puede observar una tendencia negativa, en la que a mayor vulnerabilidad, menor desempeño en el promedio Simce en Lectura por escuela.
 
 ```{r echo=FALSE}
 
@@ -321,10 +322,10 @@ ggplot(data_simce_ive_ok, aes(x = ive_2023, y = prom_lect4b_rbd)) +
   ) +
   theme_minimal()
 ```
+
 ### 2.5 Estándar de desempeño en Lectura según vulnerabilidad escolar (IVE)
 
 Se visualiza cómo varían el porcentajes de estudiantes con desempeño insuficiente, elemental y adecuado de cada establecimiento según su índice de vulnerabilidad escolar (IVE).
-
 
 ```{r echo=FALSE}
 
@@ -360,11 +361,31 @@ ggplot(data_estandares_long, aes(x = ive_2023, y = porcentaje, color = estandar)
 
 ```
 
-## 3.1 Árbol de regresión para predecir puntaje SIMCE en Lectura 4° Básico por establecimiento
+##  3.  Implementación de modelos supervisados
 
-En esta sección se utiliza un árbol de regresión para identificar patrones en las variables predictoras que explican el puntaje promedio de lectura SIMCE en los cuártos básicos de cada establecimiento. 
+### 3.1 Árbol de regresión para predecir puntaje SIMCE en Lectura 4° Básico por establecimiento
+
+En esta sección se utiliza un árbol de regresión para identificar patrones en las variables predictoras que explican el puntaje promedio de lectura SIMCE en los cuártos básicos de cada establecimiento.
 
 ```{r echo=FALSE}
+library(rpart)
+library(rpart.plot)
+
+# Modelo de árbol de regresión
+set.seed(123)  # se estsable esta semilla para reproducibilidad de los resultados
+arbol_simce <- rpart(prom_lect4b_rbd ~ cod_depe2 + cod_grupo + cod_rural_rbd + ive_2023, 
+                     data = data_simce_ive_ok,
+                     method = "anova")
+
+rpart.plot(arbol_simce,
+           type = 2,
+           extra = 101,
+           fallen.leaves = TRUE,
+           box.palette = "RdYlGn",
+           shadow.col = "gray",
+           nn = TRUE,
+           main = "Árbol de regresión - Puntaje SIMCE Lectura")
+
 # Modelo de árbol de regresión
 set.seed(123)  # se estsable esta semilla para reproducibilidad de los resultados
 arbol_simce <- rpart(prom_lect4b_rbd ~ cod_depe2 + cod_grupo + cod_rural_rbd + ive_2023, 
@@ -382,3 +403,90 @@ rpart.plot(arbol_simce,
            main = "Árbol de regresión - Puntaje SIMCE Lectura")
 ```
 
+**Interpretación**
+
+El árbol indica cómo influye la variable de grupo socioeconómico (cod_grupo) y el índice de vulnerabilidad (ive_2023) en los puntajes promedio SIMCE Lectura de 4° Básico por establecimiento. Se determina que el grupo socioeconómico es la variable más determinante. Establecimientos con grupo socioeconómico inferior a 4 (medio alto) tienen puntajes más bajos en promedio (262 puntos). Dentro de estos, los establecimientos con un grupo socioeconómico aún más bajo (menor al grupo medio) tienen puntajes más bajos (257 puntos). Los colegios pertenecientes a un grupo socioeconómico igual al medio logran puntajes intermedios (269 puntos). Por otro lado, establecimientos con grupo socioeconómico igual superior a 4 (medio alto) tienen puntajes más altos en promedio (286 puntos). En relación al grupo socioeconómico, la otra variable relevante es el índice de vulnerabilidad (IVE). Aquellos establecimientos con IVE más alto (igual o mayor al 37% de vulnerabilidad) obtienen puntajes ligeramente más bajos (281 puntos) comparados con aquellos que tienen un IVE menor a 37% (297 puntos). Este resultado confirma que el nivel socioeconómico del establecimiento es un factor clave en el desempeño en lectura, seguido por la vulnerabilidad escolar.
+
+### 3.2 Modelo Random Forest para predecir puntaje SIMCE Lectura (4° Básico)
+
+```{r echo=FALSE}
+
+library(randomForest)
+set.seed(123)
+
+# Modelo Random Forest
+rf_simce <- randomForest(prom_lect4b_rbd ~ cod_depe2 + cod_grupo + cod_rural_rbd + ive_2023, 
+                         data = data_simce_ive_ok,
+                         importance = TRUE,
+                         ntree = 500)
+
+# Resumen del modelo
+print(rf_simce)
+
+# Se evalúa la importancia de las variables
+importance(rf_simce)
+
+# Gráfico importancia de variables
+varImpPlot(rf_simce, main = "Importancia variables - Random Forest SIMCE Lectura")
+```
+
+**Interpretación** 
+
+El modelo Random Forest muestra que las variables que más influyen en la predicción del puntaje SIMCE de lectura (4° Básico) son, en orden de importancia:
+
+1.  Grupo socioeconómico (cod_grupo): Es la variable más importante para predecir los resultados.
+2.  Índice de vulnerabilidad (ive_2023): También tiene alta relevancia en la predicción del desempeño.
+3.  Tipo de dependencia escolar (cod_depe2): Contribuye, aunque en menor medida, a explicar diferencias en los puntajes.
+4.  Ruralidad (cod_rural_rbd): Es la variable menos influyente según este modelo.
+
+Este análisis confirma la fuerte relación entre condiciones socioeconómicas y vulnerabilidad escolar con el rendimiento académico en lectura.
+
+
+## 4. Evaluación del modelo de Random Forest mediante R²y RMSE
+
+``` r
+# Predicciones del modelo Random Forest
+pred_rf <- predict(rf_simce, data_simce_ive_ok)
+
+# R²
+r2_rf <- cor(pred_rf, data_simce_ive_ok$prom_lect4b_rbd)^2
+r2_rf
+```
+
+\[1\] 0.2720776
+
+``` r
+# RMSE
+rmse_rf <- sqrt(mean((pred_rf - data_simce_ive_ok$prom_lect4b_rbd)^2))
+rmse_rf
+```
+
+\[1\] 20.66282
+
+```{r include=FALSE}
+
+# Predicciones del modelo Random Forest
+pred_rf <- predict(rf_simce, data_simce_ive_ok)
+
+# R²
+r2_rf <- cor(pred_rf, data_simce_ive_ok$prom_lect4b_rbd)^2
+r2_rf
+
+# RMSE
+rmse_rf <- sqrt(mean((pred_rf - data_simce_ive_ok$prom_lect4b_rbd)^2))
+rmse_rf
+```
+
+R² = 0.27 indica que el modelo Random Forest explica aproximadamente un 27% de la variabilidad observada en los puntajes SIMCE en Lectura. Esto se considera un valor moderado, indicando que el modelo es útil, aunque existen otros factores no incluidos que influyen en el rendimiento académico en lectura.
+
+RMSE = 20.66 indica que en promedio, las predicciones del puntaje SIMCE hechas por el modelo se desvían en aproximadamente 20.7 puntos del valor real. Considerando la escala de puntajes SIMCE (habitualmente entre 200 y 350 puntos), este error indica una precisión aceptable, pero mejorable.
+
+En síntesis, el modelo tiene una capacidad moderada para predecir puntajes SIMCE de lectura de las escuelas, señalando que los factores considerados son relevantes, pero también existen otras variables influyentes no incorporadas.
+
+## Conclusiones 
+
+Para finalizar, se puede concluir que las  variables que mejor explican los resultados del puntaje SIMCE en Lectura (4° Básico) son, principalmente, el grupo socioeconómico y el índice de vulnerabilidad escolar, por lo que es posible confirmar que el contexto socioeconómico del establecimiento es determinante en el desempeño académico en lectura.
+
+El modelo de Random Forest logró explicar un 27% de la variabilidad de los puntajes observados, con un error promedio (RMSE) de aproximadamente 20.7 puntos en las predicciones. Esto indica un desempeño predictivo aceptable, aunque limitado, lo que sugiere la existencia de otras variables no consideradas en este estudio que influyen en los resultados académicos.
+
+Se recomienda para estudios futuros integrar variables adicionales relacionadas con, por ejemplo,  prácticas pedagógicas, liderazgo escolar o características familiares de los estudiantes, con el objetivo de mejorar la capacidad predictiva y profundizar en los factores que determinan los resultados educativos.
